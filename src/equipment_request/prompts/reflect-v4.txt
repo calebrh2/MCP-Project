@@ -32,47 +32,47 @@ Reply with one JSON object and no other text. Do not use markdown fences.
 </example>
 <example>
 <request>
-<employee_id>E-1003</employee_id>
-<text>A new laptop. This one feels slow.</text>
+<employee_id>E-1002</employee_id>
+<text>Refresh the laptop.</text>
 </request>
 <trace>
 <step n="1">
 <action>check_request_eligibility</action>
-<observation>{"status": "ineligible", "reason_code": "refresh_not_elapsed", "role": "individual_contributor", "item": "laptop", "units_on_file": 1, "max_on_file": 1, "next_eligible_date": "2028-08-15"}</observation>
+<observation>{"status": "ineligible", "reason_code": "refresh_not_elapsed", "role": "manager", "item": "laptop", "units_on_file": 1, "max_on_file": 1, "next_eligible_date": "2027-01-10"}</observation>
 </step>
 </trace>
 <draft>
 <decision>deny</decision>
-<response>Denied. The role is individual_contributor. refresh_not_elapsed applies. The next eligible date is 2028-08-15.</response>
+<response>Denied. The role is manager. refresh_not_elapsed applies. The next eligible date is 2027-01-10.</response>
 </draft>
 <assistant>{"passes": true, "reason": "Enough information: eligibility for the requested laptop says ineligible and refresh_not_elapsed. The decision is deny, which matches that status. Denying the laptop still answers this laptop request. The role, reason code, and next eligible date appear in the observation."}</assistant>
 </example>
 <example>
 <request>
-<employee_id>E-1001</employee_id>
-<text>Replace the laptop. It is old and slow.</text>
+<employee_id>E-1004</employee_id>
+<text>Refresh the laptop.</text>
 </request>
 <trace>
 <step n="1">
 <action>check_request_eligibility</action>
-<observation>{"status": "eligible", "reason_code": "refresh_elapsed", "role": "individual_contributor", "item": "laptop", "units_on_file": 1, "max_on_file": 1, "oldest_assigned_on": "2022-02-01", "refresh_years": 4, "next_eligible_date": "2026-02-01"}</observation>
+<observation>{"status": "eligible", "reason_code": "refresh_elapsed", "role": "manager", "item": "laptop", "units_on_file": 1, "max_on_file": 1, "oldest_assigned_on": "2023-05-01", "refresh_years": 2, "next_eligible_date": "2025-05-01"}</observation>
 </step>
 </trace>
 <draft>
 <decision>approve</decision>
-<response>Approved. The role is individual_contributor. The laptop limit is 1 on file, 1 is on file, so this laptop replacement is an issuance.</response>
+<response>Approved. The role is manager. The laptop limit is 1 on file, 1 is on file, so this laptop replacement is an issuance.</response>
 </draft>
 <assistant>{"passes": false, "reason": "Evidence does not support the wording. The observation says refresh_elapsed and units_on_file equals max_on_file, so this is a replacement. The response calls it an issuance."}</assistant>
 </example>
 <example>
 <request>
-<employee_id>E-1002</employee_id>
-<text>A standing desk.</text>
+<employee_id>E-1007</employee_id>
+<text>A tablet.</text>
 </request>
 <trace>
 <step n="1">
 <action>get_employee_info</action>
-<observation>{"found": true, "name": "Jordan Patel", "role": "manager"}</observation>
+<observation>{"found": true, "name": "Taylor Kim", "role": "director"}</observation>
 </step>
 <step n="2">
 <action>flag_for_human_review</action>
@@ -81,19 +81,19 @@ Reply with one JSON object and no other text. Do not use markdown fences.
 </trace>
 <draft>
 <decision>escalate</decision>
-<response>Escalated for human review. A standing desk is not in the catalog. Reason: unlisted_item.</response>
+<response>Escalated for human review. A tablet is not in the catalog. Reason: unlisted_item.</response>
 </draft>
-<assistant>{"passes": true, "reason": "Enough information: unlisted_item is established by the request text, and that code does not need check_request_eligibility. The decision is escalate, which matches. The response answers the standing desk request. The reason code appears in the observation."}</assistant>
+<assistant>{"passes": true, "reason": "Enough information: unlisted_item is established by the request text, and that code does not need check_request_eligibility. The decision is escalate, which matches. The response answers the tablet request. The reason code appears in the observation."}</assistant>
 </example>
 <example>
 <request>
-<employee_id>E-1001</employee_id>
-<text>Replace the laptop. It is old and slow.</text>
+<employee_id>E-1004</employee_id>
+<text>Refresh the laptop.</text>
 </request>
 <trace>
 <step n="1">
 <action>get_employee_info</action>
-<observation>{"found": true, "name": "Alex Chen", "role": "individual_contributor"}</observation>
+<observation>{"found": true, "name": "Riley Nguyen", "role": "manager"}</observation>
 </step>
 </trace>
 <draft>
@@ -104,37 +104,37 @@ Reply with one JSON object and no other text. Do not use markdown fences.
 </example>
 <example>
 <request>
-<employee_id>E-1003</employee_id>
-<text>A new laptop. This one feels slow.</text>
+<employee_id>E-1002</employee_id>
+<text>Refresh the laptop.</text>
 </request>
 <trace>
 <step n="1">
 <action>check_request_eligibility</action>
-<observation>{"status": "ineligible", "reason_code": "refresh_not_elapsed", "role": "individual_contributor", "item": "laptop", "next_eligible_date": "2028-08-15"}</observation>
+<observation>{"status": "ineligible", "reason_code": "refresh_not_elapsed", "role": "manager", "item": "laptop", "next_eligible_date": "2027-01-10"}</observation>
 </step>
 </trace>
 <draft>
 <decision>approve</decision>
-<response>Approved. The employee is an individual contributor and the laptop is already eligible.</response>
+<response>Approved. The employee is a manager and the laptop is already eligible.</response>
 </draft>
 <assistant>{"passes": false, "reason": "The decision is incorrect. The laptop observation says status ineligible and refresh_not_elapsed, so approve is not supported. The response also states eligible, which the observation does not."}</assistant>
 </example>
 <example>
 <request>
-<employee_id>E-1003</employee_id>
-<text>The laptop was ruined by a coffee spill and needs replacement.</text>
+<employee_id>E-1004</employee_id>
+<text>The headset was stolen and needs replacement.</text>
 </request>
 <trace>
 <step n="1">
 <action>check_request_eligibility</action>
-<observation>{"status": "ineligible", "reason_code": "refresh_not_elapsed", "role": "individual_contributor", "item": "laptop", "next_eligible_date": "2028-08-15"}</observation>
+<observation>{"status": "ineligible", "reason_code": "refresh_not_elapsed", "role": "manager", "item": "headset", "next_eligible_date": "2026-11-01"}</observation>
 </step>
 </trace>
 <draft>
 <decision>deny</decision>
-<response>Denied. refresh_not_elapsed. The next eligible date is 2028-08-15.</response>
+<response>Denied. refresh_not_elapsed. The next eligible date is 2026-11-01.</response>
 </draft>
-<assistant>{"passes": false, "reason": "The decision is incorrect. The laptop observation says status ineligible, and the request text cites a coffee spill, so the first matching trigger is exception_language. deny is not supported."}</assistant>
+<assistant>{"passes": false, "reason": "The decision is incorrect. The headset observation says status ineligible, and the request text cites theft, so the first matching trigger is exception_language. deny is not supported."}</assistant>
 </example>
 <example>
 <request>

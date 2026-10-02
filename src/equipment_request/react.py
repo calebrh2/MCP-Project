@@ -1,7 +1,8 @@
 """ReAct loop for one equipment request.
 
 Each model call returns a thought and an action. A tool action is checked,
-called, and appended as an observation. finish stops the loop. After eight
+called, and appended as an observation. finish stops the loop. An approve or
+a deny before a check_request_eligibility observation does not. After eight
 calls without finish, the request is flagged for human review and is not
 reflected on. A finished draft gets one more model call that checks it
 against the tool observations.
@@ -47,6 +48,10 @@ _PARSE_FAILURE_OBSERVATION = (
     "model output is not a JSON object. "
     "Reply with one JSON object and no other text. "
     'Use action "finish" or a tool name, and action_input.'
+)
+_NEEDS_ELIGIBILITY_OBSERVATION = (
+    "finish with approve or deny needs a check_request_eligibility observation "
+    "already in the trace. Call that tool, then finish."
 )
 
 ToolCaller = Callable[[str, dict[str, Any]], Awaitable[object]]
@@ -201,8 +206,9 @@ async def run_react(
     An unparseable reply is stored as a short format reminder. If a review was
     already recorded, that reply stops the loop and keeps the recorded reason.
     A repeated eligibility check for the same employee and item is not called
-    again. The observation tells the model to finish. A denial is escalated
-    when the request cites an exception and no observation says eligible.
+    again. The observation tells the model to finish. An approve or a deny
+    before a check_request_eligibility observation is sent back. A denial is
+    escalated when the request cites an exception and no observation says eligible.
     """
     guarded = guard_request(employee_id, request_text)
     catalog = {tool.name: tool for tool in tools}
@@ -305,6 +311,23 @@ async def run_react(
                         action="finish",
                         action_input=parsed.action_input,
                         observation=str(exc),
+                    )
+                )
+                if number == MAX_STEPS:
+                    return await complete(
+                        "escalate",
+                        _STEP_LIMIT_RESPONSE,
+                        await ensure_flag("step_limit"),
+                        reflect=False,
+                    )
+                continue
+            if done.decision in {"approve", "deny"} and not _has_eligibility(steps):
+                steps.append(
+                    TraceStep(
+                        thought=thought,
+                        action="finish",
+                        action_input=done.model_dump(exclude_none=True),
+                        observation=_NEEDS_ELIGIBILITY_OBSERVATION,
                     )
                 )
                 if number == MAX_STEPS:
@@ -588,6 +611,11 @@ def _review_id(result: object) -> str | None:
 def _has_exception_language(text: str) -> bool:
     """True when the request asks to waive policy or cites damage, loss, or safety."""
     return _EXCEPTION_LANGUAGE.search(text) is not None
+
+
+def _has_eligibility(steps: list[TraceStep]) -> bool:
+    """True when check_request_eligibility has already returned an observation."""
+    return any(step.action == "check_request_eligibility" for step in steps)
 
 
 def _already_eligible(steps: list[TraceStep]) -> bool:
