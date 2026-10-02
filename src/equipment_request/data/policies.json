@@ -1,0 +1,29 @@
+[
+  {
+    "role": "individual_contributor",
+    "limits": [
+      {"item": "laptop", "max_on_file": 1, "refresh_years": 4},
+      {"item": "monitor", "max_on_file": 1, "refresh_years": 3},
+      {"item": "docking_station", "max_on_file": 1, "refresh_years": 4},
+      {"item": "headset", "max_on_file": 1, "refresh_years": 2}
+    ]
+  },
+  {
+    "role": "manager",
+    "limits": [
+      {"item": "laptop", "max_on_file": 1, "refresh_years": 2},
+      {"item": "monitor", "max_on_file": 2, "refresh_years": 3},
+      {"item": "docking_station", "max_on_file": 1, "refresh_years": 3},
+      {"item": "headset", "max_on_file": 1, "refresh_years": 2}
+    ]
+  },
+  {
+    "role": "director",
+    "limits": [
+      {"item": "laptop", "max_on_file": 1, "refresh_years": 2},
+      {"item": "monitor", "max_on_file": 2, "refresh_years": 2},
+      {"item": "docking_station", "max_on_file": 1, "refresh_years": 2},
+      {"item": "headset", "max_on_file": 1, "refresh_years": 1}
+    ]
+  }
+]

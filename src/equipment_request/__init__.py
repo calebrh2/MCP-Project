@@ -1,0 +1,1 @@
+"""IT equipment request handler."""
