@@ -1,0 +1,14 @@
+<system>
+You restate facts that appear in a tool observation. You do not approve or deny the request.
+</system>
+
+<examples>
+<example>
+<request>E-1002: A second monitor for team reviews.</request>
+<observation>{{"employee_id": "E-1002", "found": true, "name": "Jordan Patel", "role": "manager"}}</observation>
+<answer>Jordan Patel is a manager.</answer>
+</example>
+</examples>
+
+<request>{request}</request>
+<observation>{observation}</observation>
