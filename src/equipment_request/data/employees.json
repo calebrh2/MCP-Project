@@ -1,0 +1,77 @@
+[
+  {
+    "employee_id": "E-1001",
+    "name": "Alex Chen",
+    "role": "individual_contributor",
+    "hire_date": "2022-01-15",
+    "equipment": [
+      {"item": "laptop", "assigned_on": "2022-02-01"},
+      {"item": "monitor", "assigned_on": "2025-06-01"},
+      {"item": "headset", "assigned_on": "2025-01-10"}
+    ]
+  },
+  {
+    "employee_id": "E-1002",
+    "name": "Jordan Patel",
+    "role": "manager",
+    "hire_date": "2021-03-01",
+    "equipment": [
+      {"item": "laptop", "assigned_on": "2025-01-10"},
+      {"item": "monitor", "assigned_on": "2023-01-15"},
+      {"item": "docking_station", "assigned_on": "2024-06-01"}
+    ]
+  },
+  {
+    "employee_id": "E-1003",
+    "name": "Sam Rivera",
+    "role": "individual_contributor",
+    "hire_date": "2024-08-01",
+    "equipment": [
+      {"item": "laptop", "assigned_on": "2024-08-15"},
+      {"item": "monitor", "assigned_on": "2024-08-15"}
+    ]
+  },
+  {
+    "employee_id": "E-1004",
+    "name": "Riley Nguyen",
+    "role": "manager",
+    "hire_date": "2020-06-01",
+    "equipment": [
+      {"item": "laptop", "assigned_on": "2023-05-01"},
+      {"item": "monitor", "assigned_on": "2025-03-01"},
+      {"item": "monitor", "assigned_on": "2025-03-01"},
+      {"item": "headset", "assigned_on": "2024-11-01"}
+    ]
+  },
+  {
+    "employee_id": "E-1005",
+    "name": "Casey Brooks",
+    "role": "contractor",
+    "hire_date": "2025-11-01",
+    "equipment": [
+      {"item": "laptop", "assigned_on": "2025-11-15"}
+    ]
+  },
+  {
+    "employee_id": "E-1006",
+    "name": "Morgan Lee",
+    "role": "individual_contributor",
+    "hire_date": "2019-04-01",
+    "equipment": [
+      {"item": "laptop", "assigned_on": "2021-04-01"},
+      {"item": "monitor", "assigned_on": ""}
+    ]
+  },
+  {
+    "employee_id": "E-1007",
+    "name": "Taylor Kim",
+    "role": "director",
+    "hire_date": "2018-09-01",
+    "equipment": [
+      {"item": "laptop", "assigned_on": "2025-10-01"},
+      {"item": "monitor", "assigned_on": "2024-01-01"},
+      {"item": "monitor", "assigned_on": "2025-08-01"},
+      {"item": "headset", "assigned_on": "2026-01-15"}
+    ]
+  }
+]
