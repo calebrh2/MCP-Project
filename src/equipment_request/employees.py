@@ -1,52 +1,32 @@
-"""Directory models returned by employee lookup.
+"""Employee directory lookup.
 
-Tenure is measured against the fixed evaluation date 2026-09-30.
+Tenure is whole years and leftover months from hire date to 2026-09-30.
 """
 
+import json
 import re
-from typing import Self
+from datetime import date
+from pathlib import Path
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator
 
+from equipment_request.models.employee_info import EmployeeInfo, Tenure
 from equipment_request.models.equipment_item import EquipmentItem
 
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _EMPLOYEE_ID = re.compile(r"^E-\d{4}$")
+_AS_OF = date(2026, 9, 30)
+_DIRECTORY_PATH = Path(__file__).resolve().parent / "data" / "employees.json"
 
 
-class Tenure(BaseModel):
-    """Whole years and leftover months from hire date to 2026-09-30."""
-
-    years: int
-    months: int
-
-    @field_validator("years", "months")
-    @classmethod
-    def non_negative(cls, value: int) -> int:
-        """Reject a negative span."""
-        if value < 0:
-            raise ValueError("tenure must be non-negative")
-        return value
-
-    @field_validator("months")
-    @classmethod
-    def months_in_range(cls, value: int) -> int:
-        """Keep leftover months inside a single year."""
-        if value > 11:
-            raise ValueError("months must be 0 through 11")
-        return value
-
-
-class EmployeeInfo(BaseModel):
-    """Employee directory record, or a not-found result for an unknown id."""
+class DirectoryRecord(BaseModel):
+    """One row in the mock employee directory."""
 
     employee_id: str
-    found: bool
-    name: str | None = None
-    role: str | None = None
-    hire_date: str | None = None
-    tenure: Tenure | None = None
-    equipment: list[EquipmentItem] = []
+    name: str
+    role: str
+    hire_date: str
+    equipment: list[EquipmentItem]
 
     @field_validator("employee_id")
     @classmethod
@@ -58,25 +38,49 @@ class EmployeeInfo(BaseModel):
 
     @field_validator("hire_date")
     @classmethod
-    def hire_date_format(cls, value: str | None) -> str | None:
-        """Require YYYY-MM-DD when a hire date is present."""
-        if value is not None and _DATE.fullmatch(value) is None:
+    def hire_date_format(cls, value: str) -> str:
+        """Require YYYY-MM-DD."""
+        if _DATE.fullmatch(value) is None:
             raise ValueError("hire_date must be YYYY-MM-DD")
         return value
 
-    @model_validator(mode="after")
-    def found_record_is_complete(self) -> Self:
-        """A located employee has identity fields; an unknown id has no equipment."""
-        if self.found:
-            missing = [
-                name
-                for name in ("name", "role", "hire_date", "tenure")
-                if getattr(self, name) is None
-            ]
-            if missing:
-                raise ValueError(
-                    "a found employee requires " + ", ".join(missing)
-                )
-        elif self.equipment:
-            raise ValueError("an unknown employee has an empty equipment list")
-        return self
+
+def _tenure(hire_date: date, as_of: date = _AS_OF) -> Tenure:
+    """Whole years and leftover months from hire_date to as_of."""
+    years = as_of.year - hire_date.year
+    months = as_of.month - hire_date.month
+    if as_of.day < hire_date.day:
+        months -= 1
+    if months < 0:
+        years -= 1
+        months += 12
+    return Tenure(years=years, months=months)
+
+
+def _load_directory() -> dict[str, DirectoryRecord]:
+    """Read the mock directory keyed by employee id."""
+    raw: object = json.loads(_DIRECTORY_PATH.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise TypeError("employee directory must be a JSON list")
+    records = [DirectoryRecord.model_validate(row) for row in raw]
+    return {record.employee_id: record for record in records}
+
+
+def get_employee_info(employee_id: str) -> EmployeeInfo:
+    """Return role, tenure, and equipment on file for an employee.
+
+    Tenure is whole years and leftover months from hire_date to 2026-09-30.
+    An unknown id returns found=false and an empty equipment list.
+    """
+    record = _load_directory().get(employee_id)
+    if record is None:
+        return EmployeeInfo(employee_id=employee_id, found=False)
+    return EmployeeInfo(
+        employee_id=record.employee_id,
+        found=True,
+        name=record.name,
+        role=record.role,
+        hire_date=record.hire_date,
+        tenure=_tenure(date.fromisoformat(record.hire_date)),
+        equipment=record.equipment,
+    )
