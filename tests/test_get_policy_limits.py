@@ -32,13 +32,20 @@ def test_manager_laptop_refreshes_every_two_years() -> None:
     assert by_item["monitor"].max_on_file == 2
 
 
-def test_director_headset_refreshes_every_year() -> None:
-    """Directors replace a headset after one year."""
+def test_director_has_four_catalog_rows() -> None:
+    """A director gets one of each item, with the published intervals."""
     limits = get_policy_limits("director")
 
-    assert limits.found is True
-    headset = next(row for row in limits.limits if row.item == "headset")
-    assert headset.refresh_years == 1
+    assert limits == PolicyLimits(
+        role="director",
+        found=True,
+        limits=[
+            PolicyLimit(item="laptop", max_on_file=1, refresh_years=2),
+            PolicyLimit(item="monitor", max_on_file=2, refresh_years=2),
+            PolicyLimit(item="docking_station", max_on_file=1, refresh_years=2),
+            PolicyLimit(item="headset", max_on_file=1, refresh_years=1),
+        ],
+    )
 
 
 def test_contractor_has_no_policy_rows() -> None:

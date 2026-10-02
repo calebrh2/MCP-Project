@@ -52,3 +52,42 @@ def test_second_review_appends_without_replacing_the_first(review_log: Path) -> 
     assert [row["review_id"] for row in stored] == ["R-0001", "R-0002"]
     assert stored[0]["request"] == "A standing desk."
     assert stored[1]["employee_id"] == "E-9999"
+
+
+def test_existing_log_continues_the_review_id_sequence(review_log: Path) -> None:
+    """A log that already holds two records assigns the next id R-0003."""
+    existing = [
+        ReviewRecord(
+            review_id="R-0001",
+            employee_id="E-1002",
+            request="A standing desk.",
+            reason="unlisted_item",
+            timestamp="2026-09-01T12:00:00+00:00",
+        ),
+        ReviewRecord(
+            review_id="R-0002",
+            employee_id="E-9999",
+            request="A headset.",
+            reason="unknown_employee",
+            timestamp="2026-09-02T12:00:00+00:00",
+        ),
+    ]
+    review_log.write_text(
+        json.dumps([row.model_dump() for row in existing], indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    record = flag_for_human_review("E-1005", "A laptop refresh.", "unknown_role")
+
+    assert record == ReviewRecord(
+        review_id="R-0003",
+        employee_id="E-1005",
+        request="A laptop refresh.",
+        reason="unknown_role",
+        timestamp="2026-09-30T15:00:00+00:00",
+    )
+    stored = json.loads(review_log.read_text(encoding="utf-8"))
+    assert [row["review_id"] for row in stored] == ["R-0001", "R-0002", "R-0003"]
+    assert stored[0]["request"] == "A standing desk."
+    assert stored[1]["employee_id"] == "E-9999"
+    assert stored[2] == record.model_dump()

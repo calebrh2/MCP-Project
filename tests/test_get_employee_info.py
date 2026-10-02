@@ -48,6 +48,17 @@ def test_tenure_counts_a_partial_year() -> None:
     assert (info.tenure.years, info.tenure.months) == (0, 10)
 
 
+def test_duplicate_monitors_are_both_returned() -> None:
+    """Two monitors with the same assignment date both stay on file."""
+    info = get_employee_info("E-1004")
+
+    monitors = [item for item in info.equipment if item.item == "monitor"]
+    assert monitors == [
+        EquipmentItem(item="monitor", assigned_on="2025-03-01"),
+        EquipmentItem(item="monitor", assigned_on="2025-03-01"),
+    ]
+
+
 def test_missing_assignment_date_is_preserved() -> None:
     """A blank assigned_on on file is returned unchanged."""
     info = get_employee_info("E-1006")
