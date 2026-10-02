@@ -28,13 +28,25 @@ MAX_STEPS = 8
 MAX_REQUEST_CHARS = 1_000
 MAX_THOUGHT_CHARS = 2_000
 _EMPLOYEE_ID = re.compile(r"^E-\d{4}$")
-_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "react-v1.txt"
-_REFLECT_PATH = Path(__file__).resolve().parent / "prompts" / "reflect-v2.txt"
+_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "react-v2.txt"
+_REFLECT_PATH = Path(__file__).resolve().parent / "prompts" / "reflect-v4.txt"
+_DECISION_ACTIONS = frozenset({"approve", "deny", "escalate"})
+_EXCEPTION_LANGUAGE = re.compile(
+    r"\b(?:waive|waiver|damage|damaged|theft|stolen|loss|lost|defect|defective|"
+    r"malfunction|medical|accessibility|safety|spill|spilled|ruined|broken)\b",
+    re.IGNORECASE,
+)
 _STEP_LIMIT_RESPONSE = (
     "Escalated for human review. The agent did not finish within 8 steps."
 )
 _REFLECTION_RESPONSE = (
     "Escalated for human review. The draft did not match the recorded tool results."
+)
+_PARSE_FAILURE_THOUGHT = "The reply was not one JSON object."
+_PARSE_FAILURE_OBSERVATION = (
+    "model output is not a JSON object. "
+    "Reply with one JSON object and no other text. "
+    'Use action "finish" or a tool name, and action_input.'
 )
 
 ToolCaller = Callable[[str, dict[str, Any]], Awaitable[object]]
@@ -184,17 +196,25 @@ async def run_react(
     traces_dir: Path,
     now: Callable[[], datetime] | None = None,
 ) -> ReactResult:
-    """Run at most eight decision calls, reflect once if a draft finished, and write the trace."""
+    """Run at most eight decision calls, reflect once if a draft finished, and write the trace.
+
+    An unparseable reply is stored as a short format reminder. If a review was
+    already recorded, that reply stops the loop and keeps the recorded reason.
+    A repeated eligibility check for the same employee and item is not called
+    again. The observation tells the model to finish. A denial is escalated
+    when the request cites an exception and no observation says eligible.
+    """
     guarded = guard_request(employee_id, request_text)
     catalog = {tool.name: tool for tool in tools}
     clock = now or (lambda: datetime.now(UTC))
     steps: list[TraceStep] = []
     flagged = False
     review_id: str | None = None
+    flag_reason: str | None = None
 
     async def ensure_flag(reason: str) -> str | None:
         """Call flag_for_human_review once per run and keep its review id."""
-        nonlocal flagged, review_id
+        nonlocal flagged, review_id, flag_reason
         if flagged:
             return review_id
         result = await call_tool(
@@ -206,6 +226,7 @@ async def run_react(
             },
         )
         flagged = True
+        flag_reason = reason
         review_id = _review_id(result)
         return review_id
 
@@ -254,8 +275,15 @@ async def run_react(
         ).text
         try:
             parsed = parse_step(raw)
-        except ValueError as exc:
-            steps.append(_failed_step(raw, str(exc)))
+        except ValueError:
+            steps.append(_failed_step())
+            if review_id is not None and flag_reason is not None:
+                return await complete(
+                    "escalate",
+                    f"Escalated for human review. Reason: {flag_reason}.",
+                    review_id,
+                    reflect=False,
+                )
             if number == MAX_STEPS:
                 return await complete(
                     "escalate",
@@ -287,6 +315,30 @@ async def run_react(
                         reflect=False,
                     )
                 continue
+            if (
+                done.decision == "deny"
+                and _has_exception_language(guarded.text)
+                and not _already_eligible(steps)
+            ):
+                response = (
+                    "Escalated for human review. The request cites an exception "
+                    "and no eligibility result says it is already eligible. "
+                    "Reason: exception_language."
+                )
+                recorded = await ensure_flag("exception_language")
+                steps.append(
+                    TraceStep(
+                        thought=thought,
+                        action="finish",
+                        action_input={
+                            "decision": "escalate",
+                            "reason": "exception_language",
+                            "response": response,
+                        },
+                        observation=response,
+                    )
+                )
+                return await complete("escalate", response, recorded, reflect=True)
             recorded = None
             if done.decision == "escalate":
                 if done.reason is None:
@@ -324,7 +376,7 @@ async def run_react(
                     thought=thought,
                     action=parsed.action,
                     action_input=parsed.action_input,
-                    observation=f"unknown action: {parsed.action}",
+                    observation=_unknown_action_observation(parsed.action),
                 )
             )
             continue
@@ -342,10 +394,25 @@ async def run_react(
             )
             continue
 
+        repeat = _duplicate_eligibility_observation(steps, parsed.action, arguments)
+        if repeat is not None:
+            steps.append(
+                TraceStep(
+                    thought=thought,
+                    action=parsed.action,
+                    action_input=arguments,
+                    observation=repeat,
+                )
+            )
+            continue
+
         result = await call_tool(parsed.action, arguments)
         if parsed.action == "flag_for_human_review":
             flagged = True
             review_id = _review_id(result)
+            reason = arguments.get("reason")
+            if isinstance(reason, str):
+                flag_reason = reason
         steps.append(
             TraceStep(
                 thought=thought,
@@ -414,6 +481,20 @@ def _validate_arguments(tool: ListedTool, payload: dict[str, Any]) -> dict[str, 
         if isinstance(schema_type, str):
             _check_schema_type(tool.name, name, payload[name], schema_type)
     return {str(name): payload[name] for name in properties if name in payload}
+
+
+def _unknown_action_observation(action: str) -> str:
+    """Name an action the server did not list.
+
+    approve, deny, and escalate are decision values. When one of those is
+    used as the action, the next step is finish with that decision.
+    """
+    if action in _DECISION_ACTIONS:
+        return (
+            f"unknown action: {action}. "
+            "The next action is finish with decision, reason, and response."
+        )
+    return f"unknown action: {action}"
 
 
 def _coerce_finish(parsed: ParsedStep) -> ParsedStep:
@@ -485,13 +566,13 @@ def _parse_reflection(text: str) -> Reflection:
     )
 
 
-def _failed_step(raw: str, observation: str) -> TraceStep:
-    """Record an unparseable model reply without calling a tool."""
+def _failed_step() -> TraceStep:
+    """Record an unparseable model reply without copying it into the trace."""
     return TraceStep(
-        thought=raw[:MAX_THOUGHT_CHARS],
+        thought=_PARSE_FAILURE_THOUGHT,
         action="",
         action_input={},
-        observation=observation,
+        observation=_PARSE_FAILURE_OBSERVATION,
     )
 
 
@@ -501,6 +582,71 @@ def _review_id(result: object) -> str | None:
         review_id = result.get("review_id")
         if isinstance(review_id, str):
             return review_id
+    return None
+
+
+def _has_exception_language(text: str) -> bool:
+    """True when the request asks to waive policy or cites damage, loss, or safety."""
+    return _EXCEPTION_LANGUAGE.search(text) is not None
+
+
+def _already_eligible(steps: list[TraceStep]) -> bool:
+    """True when an eligibility observation already says status eligible."""
+    return any(
+        step.action == "check_request_eligibility"
+        and _json_field(step.observation, "status") == "eligible"
+        for step in steps
+    )
+
+
+def _duplicate_eligibility_observation(
+    steps: list[TraceStep], action: str, arguments: dict[str, Any]
+) -> str | None:
+    """Return a finish reminder when this eligibility call is already in the trace."""
+    if action != "check_request_eligibility":
+        return None
+    employee_id = arguments.get("employee_id")
+    item = arguments.get("item")
+    for step in steps:
+        if step.action != "check_request_eligibility":
+            continue
+        if step.action_input.get("employee_id") != employee_id:
+            continue
+        if step.action_input.get("item") != item:
+            continue
+        return _finish_after_eligibility(step.observation)
+    return None
+
+
+def _finish_after_eligibility(observation: str) -> str:
+    """Name the finish decision that follows an eligibility result already on file."""
+    status = _json_field(observation, "status")
+    if status == "eligible":
+        decision = "approve"
+    elif status == "ineligible":
+        decision = (
+            "deny, unless the request text is an earlier escalation. "
+            "Then the decision is escalate"
+        )
+    else:
+        decision = "escalate with the reason_code from this result"
+    return (
+        "This eligibility result is already in the trace. "
+        f"The next action is finish with decision {decision}."
+    )
+
+
+def _json_field(text: str, field: str) -> str | None:
+    """Read one string field from a JSON object, or none when the text is not one."""
+    try:
+        payload: object = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get(field)
+    if isinstance(value, str):
+        return value
     return None
 
 
