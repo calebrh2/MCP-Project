@@ -1,4 +1,6 @@
-"""MCP client that calls get_employee_info on the one-tool server.
+"""MCP client that calls the equipment-request tools.
+
+Run it with:
 
     uv run python demos/employee_client.py
 """
@@ -15,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 async def main() -> None:
-    """Connect over stdio, call get_employee_info, and print the response."""
+    """Connect over stdio, call each registered tool, and print the responses."""
     params = StdioServerParameters(
         command=sys.executable,
         args=["-m", "equipment_request.server"],
@@ -34,6 +36,35 @@ async def main() -> None:
         )
         if result.is_error:
             raise SystemExit(result)
+        print("get_employee_info:")
+        print(json.dumps(result.structured_content, indent=2))
+        result = await session.call_tool(
+            "get_policy_limits",
+            {"role": "manager"},
+        )
+        if result.is_error:
+            raise SystemExit(result)
+        print("get_policy_limits:")
+        print(json.dumps(result.structured_content, indent=2))
+        result = await session.call_tool(
+            "check_request_eligibility",
+            {"employee_id": "E-1001", "item": "laptop"},
+        )
+        if result.is_error:
+            raise SystemExit(result)
+        print("check_request_eligibility:")
+        print(json.dumps(result.structured_content, indent=2))
+        result = await session.call_tool(
+            "flag_for_human_review",
+            {
+                "employee_id": "E-1005",
+                "request": "A laptop refresh.",
+                "reason": "unknown_role",
+            },
+        )
+        if result.is_error:
+            raise SystemExit(result)
+        print("flag_for_human_review:")
         print(json.dumps(result.structured_content, indent=2))
 
 

@@ -65,3 +65,6 @@ dmypy.json
 .idea/
 *.swp
 *.swo
+
+# Escalation log written by flag_for_human_review
+src/equipment_request/data/reviews.json
